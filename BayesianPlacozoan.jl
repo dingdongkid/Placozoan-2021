@@ -373,7 +373,7 @@ function initializeObserver(p::Placozoan, nLparticles::Int64, nPparticles::Int64
    p.observer.nPparticles[]  = nPparticles
    p.observer.priorDensity[] = priorDensity
 
-# +   p.observer.Lparticle = zeros(nLparticles,2)
+#    p.observer.Lparticle = zeros(nLparticles,2)
 #    p.observer.Pparticle = zeros(nPparticles,2)
 #    p.observer.Pparticle_step = zeros(nPparticles,2)
 
@@ -532,6 +532,7 @@ function likelihood(p::Placozoan, Electroreception::Bool = true, Photoreception:
        end
      end
    end
+  # likelihood observation particles cannot be inside placozoan
   # println("m:", maximum(p.observer.likelihood))
 
    p.observer.likelihood ./= maximum(p.observer.likelihood)
@@ -637,13 +638,20 @@ end
      end
  end
 
+ function noreception(prey::Placozoan)
+   for j = 1:length(prey.receptor.state)
+      prey.receptor.state[j] = 0
+    end
+    return prey.receptor.state
+  end
 
  # electroreceptor states as function of predator location
+ # TODO: to detect multiple predators, add array of predators in range, and activate receptors
  function electroreception(prey::Placozoan, predator::Placozoan)
 
    for j = 1:length(prey.receptor.state)
-      maxRange = sqrt( (predator.x[] - prey.receptor.x[j])^2  +
-                   (predator.y[] - prey.receptor.y[j])^2 ) - predator.radius
+      maxRange = sqrt( (predator.x[] - prey.receptor.x[j] - prey.x[])^2  +
+                   (predator.y[] - prey.receptor.y[j] - prey.y[])^2 ) - predator.radius
 
       if maxRange < 0.0
          maxRange = 0.0
@@ -655,6 +663,7 @@ end
 
 
  # photoreceptor states as function of predator location (approach angle)
+ # can apply same array system as electroreception
  function photoreception(prey::Placozoan, predator::Placozoan)
 
   for j = 1:length(prey.photoreceptor.state)
@@ -696,6 +705,7 @@ function orbit(dψ::Float64, p::Array{Float64,2})
 end
 
 # predator movement
+# TODO: direct third component of movement towards [detected] prey
 function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
 
   # predator movement
@@ -705,28 +715,39 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
   predator.step[:] = 0.9*predator.step +
                     0.1*randn(2).*predator.speed[]  .+
                     0.1*v*predator.speed[].*([predator.x[], predator.y[]]) ./ d
+                    #last movement + random (normally distributed) movement + move to origin
 
   # update predator coordinates
   predator.x[] += predator.step[1]
   predator.y[] += predator.step[2]
 
-  d3 = sqrt.(prey.observer.Pparticle[1:prey.observer.nPparticles[],1].^2 + prey.observer.Pparticle[1:prey.observer.nPparticles[],2].^2)
+  #d3 = sqrt.(prey.observer.Pparticle[1:prey.observer.nPparticles[],1].^2 + prey.observer.Pparticle[1:prey.observer.nPparticles[],2].^2)
 
-  v3 = sign.( prey.radius  + Δ .- d3)
-  prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:].= 0.8*prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:] +
+  #v3 = sign.( prey.radius  + Δ .- d3)
+#=  prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:].= 0.8*prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:] +
           0.2*randn(prey.observer.nPparticles[],2).*predator.speed[]
           #  .+
           # 0.1*v3.*predator.speed[].*prey.observer.Pparticle ./ d3
   prey.observer.Pparticle[1:prey.observer.nPparticles[],:] .=  prey.observer.Pparticle[1:prey.observer.nPparticles[],:] +
                               prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:]
+=#
+   update_particles(prey, predator.speed[])
+   update_particles(predator, prey.speed[])
 
+end
+
+function update_particles(p::Placozoan, v::Float64)
+  p.observer.Pparticle_step[1:p.observer.nPparticles[],:].= 0.8*p.observer.Pparticle_step[1:p.observer.nPparticles[],:] +
+          0.2*randn(p.observer.nPparticles[],2).*v
+
+  p.observer.Pparticle[1:p.observer.nPparticles[],:] .=  p.observer.Pparticle[1:p.observer.nPparticles[],:] +
+                              p.observer.Pparticle_step[1:p.observer.nPparticles[],:]
 end
 
 
 function initialize_particles(p::Placozoan)
 
   p.observer.Pparticle[1:p.observer.nPparticles[],:] = samplePrior(p.observer.nPparticles[], p)
-
 
 end
 
@@ -735,7 +756,7 @@ function bayesParticleUpdate(p::Placozoan)
 
   δ2 = 1.5  # squared collision maxRange
   diffuseCoef = 4.0   # posterior particle diffusion rate (SD of Gaussian per step)
-  # NB diffusion coef here should match diffusion coef in sequential Bayes upsdate (bayesArrayUpdate())
+  # NB diffusion coef here should match diffusion coef in sequential Bayes update (bayesArrayUpdate())
   nSpawn = 4  # average number of new posterior particles per collision
   nCollision = 0
   nCollider = 0
@@ -1265,3 +1286,27 @@ function posteriorInMcellRF(p::Placozoan)
 
   Pr
 end
+
+#=
+function findprey ezmode
+set drift location to average of belief particles
+end
+
+function findprey medium
+set drift angle to average of belief particles
+end
+
+function findprey hardmode
+sector-wise or cell-wise search for belief particles
+unsure how to make this efficient, possibly look at sorting
+then move towards set location
+aim for simplicity O(n) to O(n log n)
+end
+
+function findprey hardest
+cell-wise activation, on/off or linear with belief particles
+sum all forces and move
+nutso
+end
+
+=#

@@ -29,7 +29,7 @@ end
 
 # simulation parameters
 nReps = 1
-nFrames = 480       # number of animation frames
+nFrames = 300       # number of animation frames
 burn_time = 30      # burn in posterior initially for 30 sec with predator outside observable world
 mat_radius = 400
 approach_Δ = 25.0         # predator closest approach distance
@@ -47,12 +47,12 @@ prey_radius = 120
 prey_margin = 40
 Nreceptors = 32
 Ncrystals = 8
-prey_fieldrange = 0   # no field
+prey_fieldrange = mat_radius   # no field
 
 
 # predator parameters
 predator_radius = 150
-predator_margin = 0
+predator_margin = 40
 predator_speed = 0.25
 predator_fieldrange = mat_radius
 
@@ -75,7 +75,7 @@ end
 t = Node(0.0)
 
 ELECTRORECEPTION = true
-PHOTORECEPTION = true
+PHOTORECEPTION = false
 
 NTRIALS = [0]
 
@@ -161,9 +161,13 @@ for rep = 1:nReps
                 # predator constructed without observer
                 global
                 predator = Placozoan(predator_radius, predator_margin, predator_fieldrange,
-                     RGBA(.25, 0.1, 0.1, .35),
-                     RGBA(.45, 0.1, 0.1, 0.2),
-                     RGB(.95, 0.1, 0.1) )
+                    Nreceptors, sizeof_receptor, mat_radius,
+                    Ncrystals, sizeof_crystal, mat_radius,
+                    n_likelihood_particles, Int(n_posterior_particles),
+                    posteriorDeaths, nFrames,
+                    RGBA(.25, 0.1, 0.1, .35),
+                    RGBA(.45, 0.1, 0.1, 0.2),
+                    RGB(.95, 0.1, 0.1) )
                 predator.speed[] = predator_speed
                 θ = π * rand()[] # Random initial heading (from above)
                 predator.x[] = (mat_radius + predator_radius) * cos(θ)
@@ -178,6 +182,11 @@ for rep = 1:nReps
             Vreceptor_RF(prey)
             initialize_prior(prey)
             prey.observer.posterior[:,:] = prey.observer.prior[:,:]
+
+            Ereceptor_RF(predator, prey)
+            Vreceptor_RF(predator)
+            initialize_prior(predator)
+            predator.observer.posterior[:,:] = predator.observer.prior[:,:]
 
             # burn in posterior
             # from uniform to posterior given no predator in the observable world for burn-in time
@@ -197,16 +206,29 @@ for rep = 1:nReps
             predator.x[] = (mat_radius + 0.0* predator_radius) * cos(θ)
             predator.y[] = (mat_radius + 0.0 * predator_radius) * sin(θ)
 
+            for i in 1:10
+                if ELECTRORECEPTION
+                    electroreception(predator, prey)
+                end
+                if PHOTORECEPTION
+                    photoreception(predator, prey)
+                end
+                likelihood(predator, ELECTRORECEPTION, PHOTORECEPTION)
+                bayesArrayUpdate(predator)
+                predator.observer.prior[:,:] = predator.observer.posterior[:,:]
+                radialSmooth(predator.observer.prior, predator_radius:mat_radius)
+            end
 
 
             # initialize particle filter
             initialize_particles(prey) # draw initial sample from prior
+            initialize_particles(predator)
 
                 if DO_PLOTS
 
                     if !PLOT_ARRAYS    # not plotting likelihoods or posterior
                         scene, layout = layoutscene(resolution=(WorldSize, WorldSize))
-                        left_panel =    layout[1, 1] = LAxis(scene, title="Placozoan",
+                        left_panel =    layout[1, 1] = Axis(scene, title="Placozoan",
                                                          backgroundcolor=colour_background )
 
                         hidespines!(left_panel)
@@ -275,7 +297,7 @@ for rep = 1:nReps
 
 
                 if PLOT_EXT_PARTICLES
-
+                    # predator ext particles
                     # plot likelihood particles (samples from likelihood)
                     Lparticle_plt = scatter!(left_panel,
                         prey.observer.Lparticle[1:prey.observer.nLparticles[], 1],
@@ -290,6 +312,23 @@ for rep = 1:nReps
 
                 end # plot external particles
 
+#=
+                if PLOT_EXT_PARTICLES
+
+                    # plot likelihood particles (samples from likelihood)
+                    Lparticle_plt = scatter!(left_panel,
+                        prey.observer.Lparticle[1:prey.observer.nLparticles[], 1],
+                        prey.observer.Lparticle[1:prey.observer.nLparticles[], 2],
+                        color=colour_likelihood, markersize=size_likelihood, strokewidth=0.1)
+
+                    # plot posterior particles
+                    Pparticle_plt = scatter!(left_panel,
+                        prey.observer.Pparticle[1:prey.observer.nPparticles[], 1],
+                        prey.observer.Pparticle[1:prey.observer.nPparticles[], 2],
+                        color=colour_posterior, markersize=size_posterior, strokewidth=0.1)
+
+                end # plot external particles
+=#
 
                 if PLOT_INT_PARTICLES
 
@@ -370,11 +409,12 @@ for rep = 1:nReps
                         decompose(Point2f0, Circle(Point2f0(0., 0.), prey.gutradius)),
                         color=prey.gutcolor, strokewidth=0.5, strokecolor=prey.gutcolor*.75)
 
-
                     receptor_plt = scatter!(left_panel, prey.receptor.x, prey.receptor.y ,
                         markersize=prey.receptor.size,
                         color=[prey.receptor.openColor for i in 1:prey.receptor.N],
                         strokecolor=:black, strokewidth=0.25)
+
+                    if PLOT_ARRAYS
 
                     L_receptor_plt = scatter!(middle_panel,
                         mat_radius .+1 .+prey.receptor.x, mat_radius .+1 .+prey.receptor.y ,
@@ -387,6 +427,8 @@ for rep = 1:nReps
                         markersize=prey.receptor.size,
                         color=[prey.receptor.openColor for i in 1:prey.receptor.N],
                         strokecolor=:black, strokewidth=0.25)
+
+                    end
 
                     if PHOTORECEPTION
                     crystal_plt = scatter!(left_panel, prey.photoreceptor.x, prey.photoreceptor.y,
@@ -413,29 +455,36 @@ for rep = 1:nReps
 
                 # VIDEO RECORDING
                 # comment out ONE of the following 2 lines to (not) generate video file
-                record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
-                #for i in 1:nFrames                                      # just compute
+                #record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
+                for i in 1:nFrames                                      # just compute
 
                    #println(i)
 
                     # predator random walk to within Δ of prey
                     stalk(predator, prey, approach_Δ)
+                    #are you serious this is where the problem was fuck me let's go
 
                     # electroreception
                     if ELECTRORECEPTION
                         electroreception(prey, predator)
+                    #    electroreception(predator, prey)
 
                         if DO_PLOTS
                             # set color of each receptor, indicating open or closed state
+                            #unaltered to prey
                             receptorColor = [prey.receptor.closedColor for j = 1:prey.receptor.N]
                             receptorColor[findall(x -> x == 1, prey.receptor.state)] .= prey.receptor.openColor
-                            receptor_plt.color[] = L_receptor_plt.color[] = R_receptor_plt.color[] = receptorColor
+                            receptor_plt.color[] = receptorColor
+                            if PLOT_ARRAYS
+                                L_receptor_plt.color[] = R_receptor_plt.color[] = receptorColor
+                            end
                         end # DO_PLOTS
                     end  # electroreception
 
 
                     # photoreception
                     if PHOTORECEPTION
+#                        photoreception(prey, predator)
                         photoreception(prey, predator)
                         if DO_PLOTS
                             # set color of each receptor, indicating open or closed state
@@ -461,8 +510,17 @@ for rep = 1:nReps
                     #(observation, belief) = reflect!(prey) # reflect samples into margin
 
 
+                    likelihood(predator, ELECTRORECEPTION, PHOTORECEPTION)
+
+                    sample_likelihood(predator)     # random sample from likelihood
+
+                    bayesParticleUpdate(predator)   # Bayesian particle filter
+
+                    bayesArrayUpdate(predator)  # numerical sequential Bayes (benchmark)
+
                     if PLOT_EXT_PARTICLES
                         # update likelihood particle plot
+                        # unaltered to predator
                         Lparticle_plt[1] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 1]
                         Lparticle_plt[2] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 2]
 
@@ -552,6 +610,7 @@ for rep = 1:nReps
                 end # frame
 
                 println()
+                println(prey.receptor.state)
 
                 NTRIALS[] = NTRIALS[] + 1
                 laptimer()
