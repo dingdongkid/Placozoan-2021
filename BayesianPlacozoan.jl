@@ -210,9 +210,11 @@ function Ereceptor(worldradius::Int64, placozoanradius::Int64,
      error("Number of receptors must be a multiple of 4")
    end
 
+
    # N receptors equally spaced in a ring at radius radius
    x = [placozoanradius.*(cos(2π*i/N)) for i in 1:N]
    y = [placozoanradius.*(sin(2π*i/N)) for i in 1:N]
+
 
    # 1d vector containing N offset arrays; ith will contain RF for ith receptor
    Lhd = Array{OffsetArray,1}(undef,N)
@@ -222,11 +224,14 @@ function Ereceptor(worldradius::Int64, placozoanradius::Int64,
 
    return Ereceptor(N, receptorSize, x, y, zeros(N),
                     Lhd, colour_receptor_OPEN, colour_receptor_CLOSED)
+
+  #  return Ereceptor(N, receptorSize, zeros(N),
+  #                  Lhd, colour_receptor_OPEN, colour_receptor_CLOSED)
 end
 
 # dummy electroreceptor constructor (for constructing placozoan without electroreceptors)
 function Ereceptor()
-
+  #may need to remove x/y coords
   return Ereceptor(0, 0, [0], [0], zeros(1),
                  Array{OffsetArray,1}(undef,1), RGB(0,0,0), RGB(0,0,0))
 end
@@ -443,6 +448,7 @@ function Ereceptor_RF(self::Placozoan, other::Placozoan)
       for k in -self.observer.maxRange:self.observer.maxRange
 
         # likelihood at (j,k)
+        #problem likely lies here - need to centre around predator
         L = sqrt(j^2+k^2) > self.radius ?
         Electroreceptor_pOpen(sqrt((self.receptor.x[i]-j)^2 + (self.receptor.y[i]-k)^2),
                    other.potential) : 0.0
@@ -650,8 +656,8 @@ end
  function electroreception(prey::Placozoan, predator::Placozoan)
 
    for j = 1:length(prey.receptor.state)
-      maxRange = sqrt( (predator.x[] - prey.receptor.x[j] - prey.x[])^2  +
-                   (predator.y[] - prey.receptor.y[j] - prey.y[])^2 ) - predator.radius
+      maxRange = sqrt( (predator.x[] - prey.receptor.x[j])^2  +
+                   (predator.y[] - prey.receptor.y[j])^2 ) - predator.radius
 
       if maxRange < 0.0
          maxRange = 0.0
@@ -719,7 +725,9 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
 
   # update predator coordinates
   predator.x[] += predator.step[1]
+  predator.receptor.x .+= predator.step[1]
   predator.y[] += predator.step[2]
+  predator.receptor.y .+= predator.step[2]
 
   #d3 = sqrt.(prey.observer.Pparticle[1:prey.observer.nPparticles[],1].^2 + prey.observer.Pparticle[1:prey.observer.nPparticles[],2].^2)
 

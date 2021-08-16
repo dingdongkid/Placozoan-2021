@@ -13,6 +13,7 @@ using TickTock
 PLOT_EXT_PARTICLES = true
 PLOT_INT_PARTICLES = true
 PLOT_ARRAYS = true
+PRED_RECEPTION = true
 
 # DO_PLOTS switches plotting ON/OFF, for running multiple simulations
 # to collect data without plotting. DO_PLOTS must be true for the
@@ -29,7 +30,7 @@ end
 
 # simulation parameters
 nReps = 1
-nFrames = 300       # number of animation frames
+nFrames = 480      # number of animation frames
 burn_time = 30      # burn in posterior initially for 30 sec with predator outside observable world
 mat_radius = 400
 approach_Δ = 25.0         # predator closest approach distance
@@ -47,12 +48,13 @@ prey_radius = 120
 prey_margin = 40
 Nreceptors = 32
 Ncrystals = 8
-prey_fieldrange = mat_radius   # no field
+prey_fieldrange = 0 # no field
+#prey_fieldrange = mat_radius   # mat field
 
 
 # predator parameters
 predator_radius = 150
-predator_margin = 40
+predator_margin = 0
 predator_speed = 0.25
 predator_fieldrange = mat_radius
 
@@ -158,7 +160,7 @@ for rep = 1:nReps
                     n_likelihood_particles, Int(n_posterior_particles),
                     posteriorDeaths, nFrames)
 
-                # predator constructed without observer
+                # predator constructed with observer
                 global
                 predator = Placozoan(predator_radius, predator_margin, predator_fieldrange,
                     Nreceptors, sizeof_receptor, mat_radius,
@@ -169,9 +171,12 @@ for rep = 1:nReps
                     RGBA(.45, 0.1, 0.1, 0.2),
                     RGB(.95, 0.1, 0.1) )
                 predator.speed[] = predator_speed
+                prey.speed[] = predator_speed
                 θ = π * rand()[] # Random initial heading (from above)
                 predator.x[] = (mat_radius + predator_radius) * cos(θ)
+                predator.receptor.x .+= predator.x
                 predator.y[] = (mat_radius + predator_radius) * sin(θ)
+                predator.receptor.y .+= predator.y
                 # predator.field[:] = dummy_predator.field[:]
                 # predator.potential[:] = dummy_predator.potential[:]
 
@@ -183,6 +188,7 @@ for rep = 1:nReps
             initialize_prior(prey)
             prey.observer.posterior[:,:] = prey.observer.prior[:,:]
 
+            placozoanFieldstrength!(prey)
             Ereceptor_RF(predator, prey)
             Vreceptor_RF(predator)
             initialize_prior(predator)
@@ -203,10 +209,15 @@ for rep = 1:nReps
                 radialSmooth(prey.observer.prior, prey_radius:mat_radius)
             end
 
+#=
             predator.x[] = (mat_radius + 0.0* predator_radius) * cos(θ)
-            predator.y[] = (mat_radius + 0.0 * predator_radius) * sin(θ)
+            predator.receptor.x .+= predator.x
+            predator.y[] = (mat_radius + predator_radius) * sin(θ)
+            predator.receptor.y .+= predator.y
 
-            for i in 1:10
+=#
+
+            for i in 1:burn_time
                 if ELECTRORECEPTION
                     electroreception(predator, prey)
                 end
@@ -223,6 +234,8 @@ for rep = 1:nReps
             # initialize particle filter
             initialize_particles(prey) # draw initial sample from prior
             initialize_particles(predator)
+            println(prey.receptor.x[1])
+            println(predator.receptor.x[1])
 
                 if DO_PLOTS
 
@@ -295,19 +308,19 @@ for rep = 1:nReps
 
                 end # DO_PLOTS
 
-
+#altered to predator
                 if PLOT_EXT_PARTICLES
-                    # predator ext particles
+                    # prey ext particles
                     # plot likelihood particles (samples from likelihood)
                     Lparticle_plt = scatter!(left_panel,
-                        prey.observer.Lparticle[1:prey.observer.nLparticles[], 1],
-                        prey.observer.Lparticle[1:prey.observer.nLparticles[], 2],
+                        predator.observer.Lparticle[1:predator.observer.nLparticles[], 1],
+                        predator.observer.Lparticle[1:predator.observer.nLparticles[], 2],
                         color=colour_likelihood, markersize=size_likelihood, strokewidth=0.1)
 
                     # plot posterior particles
                     Pparticle_plt = scatter!(left_panel,
-                        prey.observer.Pparticle[1:prey.observer.nPparticles[], 1],
-                        prey.observer.Pparticle[1:prey.observer.nPparticles[], 2],
+                        predator.observer.Pparticle[1:predator.observer.nPparticles[], 1],
+                        predator.observer.Pparticle[1:predator.observer.nPparticles[], 2],
                         color=colour_posterior, markersize=size_posterior, strokewidth=0.1)
 
                 end # plot external particles
@@ -315,16 +328,17 @@ for rep = 1:nReps
 #=
                 if PLOT_EXT_PARTICLES
 
+                    #predator ext particles
                     # plot likelihood particles (samples from likelihood)
                     Lparticle_plt = scatter!(left_panel,
-                        prey.observer.Lparticle[1:prey.observer.nLparticles[], 1],
-                        prey.observer.Lparticle[1:prey.observer.nLparticles[], 2],
+                        predator.observer.Lparticle[1:predator.observer.nLparticles[], 1],
+                        predator.observer.Lparticle[1:predator.observer.nLparticles[], 2],
                         color=colour_likelihood, markersize=size_likelihood, strokewidth=0.1)
 
                     # plot posterior particles
                     Pparticle_plt = scatter!(left_panel,
-                        prey.observer.Pparticle[1:prey.observer.nPparticles[], 1],
-                        prey.observer.Pparticle[1:prey.observer.nPparticles[], 2],
+                        predator.observer.Pparticle[1:predator.observer.nPparticles[], 1],
+                        predator.observer.Pparticle[1:predator.observer.nPparticles[], 2],
                         color=colour_posterior, markersize=size_posterior, strokewidth=0.1)
 
                 end # plot external particles
@@ -353,10 +367,10 @@ for rep = 1:nReps
                 if PLOT_ARRAYS
 
                     Likely_plt = plot!( middle_panel,
-                        OffsetArrays.no_offset_view(prey.observer.likelihood), colorrange = (0.0, 1.25), colormap = :copper)  # :turku
+                        OffsetArrays.no_offset_view(predator.observer.likelihood), colorrange = (0.0, 1.25), colormap = :copper)  # :turku
 
                     Posty_plt =  surface!(right_panel, 1:WorldSize, 1:WorldSize,
-                        OffsetArrays.no_offset_view(prey.observer.posterior),  colormap = :magma)
+                        OffsetArrays.no_offset_view(predator.observer.posterior),  colormap = :magma)
 
                     # PostContour_plt = contour!(right_panel, 1:WorldSize, 1:WorldSize,
                     #     lift(u->u, Posty_plt[3]), levels = [1.0e-6, 1.0e-5, 1.0e-4], color = RGB(.35,.35,.35))
@@ -437,6 +451,14 @@ for rep = 1:nReps
                             strokecolor=:black, strokewidth=0.25)
                     end
 
+                    if PRED_RECEPTION
+                    predRecep_plt = scatter!(left_panel,
+                        predator.receptor.x, predator.receptor.y,
+                        markersize=predator.receptor.size,
+                        color=[predator.receptor.openColor for i in 1:predator.receptor.N],
+                        strokecolor=:black, strokewidth=0.25)
+                    end
+
 
                     # reset axis limits (have been auto-adjusted by MakieLayout)
                     xlims!(left_panel, -mat_radius, mat_radius)
@@ -467,7 +489,7 @@ for rep = 1:nReps
                     # electroreception
                     if ELECTRORECEPTION
                         electroreception(prey, predator)
-                    #    electroreception(predator, prey)
+                        electroreception(predator, prey)
 
                         if DO_PLOTS
                             # set color of each receptor, indicating open or closed state
@@ -475,6 +497,12 @@ for rep = 1:nReps
                             receptorColor = [prey.receptor.closedColor for j = 1:prey.receptor.N]
                             receptorColor[findall(x -> x == 1, prey.receptor.state)] .= prey.receptor.openColor
                             receptor_plt.color[] = receptorColor
+
+                            #TODO:pred colour too
+                            p_receptorColor = [predator.receptor.closedColor for j = 1:predator.receptor.N]
+                            p_receptorColor[findall(x -> x == 1, predator.receptor.state)] .= predator.receptor.openColor
+                            predRecep_plt.color[] = p_receptorColor
+
                             if PLOT_ARRAYS
                                 L_receptor_plt.color[] = R_receptor_plt.color[] = receptorColor
                             end
@@ -520,13 +548,13 @@ for rep = 1:nReps
 
                     if PLOT_EXT_PARTICLES
                         # update likelihood particle plot
-                        # unaltered to predator
-                        Lparticle_plt[1] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 1]
-                        Lparticle_plt[2] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 2]
+                        # altered to predator
+                        Lparticle_plt[1] = predator.observer.Lparticle[1:prey.observer.nLparticles[], 1]
+                        Lparticle_plt[2] = predator.observer.Lparticle[1:prey.observer.nLparticles[], 2]
 
                         # update posterior particle plot
-                        Pparticle_plt[1] = prey.observer.Pparticle[1:prey.observer.nPparticles[], 1]
-                        Pparticle_plt[2] = prey.observer.Pparticle[1:prey.observer.nPparticles[], 2]
+                        Pparticle_plt[1] = predator.observer.Pparticle[1:prey.observer.nPparticles[], 1]
+                        Pparticle_plt[2] = predator.observer.Pparticle[1:prey.observer.nPparticles[], 2]
                     end # PLOT_EXT_PARTICLES
 
                     if PLOT_INT_PARTICLES
@@ -544,9 +572,16 @@ for rep = 1:nReps
                     if PLOT_ARRAYS
 
 
-                        Likely_plt[1] = mask .* OffsetArrays.no_offset_view(prey.observer.likelihood)
-                        Posty_plt[3] = mask .* OffsetArrays.no_offset_view(prey.observer.posterior)
+                        Likely_plt[1] = mask .* OffsetArrays.no_offset_view(predator.observer.likelihood)
+                        Posty_plt[3] = mask .* OffsetArrays.no_offset_view(predator.observer.posterior)
                     end # PLOT_ARRAYS
+
+                    if PRED_RECEPTION
+
+                        predRecep_plt[1] = predator.receptor.x
+                        predRecep_plt[2] = predator.receptor.y
+
+                    end
 
                     # record posterior entropy (& display during simulation)
                     prey.observer.PosteriorEntropy[i] = entropy(prey.observer.posterior)
@@ -611,6 +646,8 @@ for rep = 1:nReps
 
                 println()
                 println(prey.receptor.state)
+                println(prey.receptor.x[1])
+                println(predator.receptor.x[1])
 
                 NTRIALS[] = NTRIALS[] + 1
                 laptimer()
