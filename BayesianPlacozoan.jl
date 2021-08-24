@@ -231,7 +231,7 @@ end
 
 # dummy electroreceptor constructor (for constructing placozoan without electroreceptors)
 function Ereceptor()
-  #may need to remove x/y coords
+  # may need to remove x/y coords
   return Ereceptor(0, 0, [0], [0], zeros(1),
                  Array{OffsetArray,1}(undef,1), RGB(0,0,0), RGB(0,0,0))
 end
@@ -286,7 +286,7 @@ struct Placozoan
   marginwidth::Float64
   gutradius::Float64
   celldiam::Float64
-  x::Array{Float64,1}  # x-ccord of centre
+  x::Array{Float64,1}  # x-coord of centre
   y::Array{Float64,1}   # y-coord of centre
   # field[i] is pre-computed bio-electric field strength
   #   at distance i μm from edge of placozoan
@@ -405,7 +405,9 @@ dipoleFieldstrength(r::Float64) = 2π*physics.ρ*physics.I*physics.δ./r.^3
 # due to all dipoles in a placozoan.
 # updates placozoan.field and placozoan.potential
 function placozoanFieldstrength!(p::Placozoan)
-  for a in p.celldiam:p.celldiam:(p.gutradius - p.celldiam)
+#  for a in p.celldiam:p.celldiam:(p.gutradius - p.celldiam)
+# edit: assuming all of the cells produce electric field, not just middle gut
+  for a in p.celldiam:p.celldiam:(p.radius - p.celldiam)
     n = round(2π*a/p.celldiam)    # number of dipoles in layer
     x = [ a*cos(2π*i/n) for i in 1:n]     # location of dipole
     y = [ a*sin(2π*i/n) for i in 1:n]
