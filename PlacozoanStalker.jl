@@ -480,8 +480,8 @@ for rep = 1:nReps
 
                 # VIDEO RECORDING
                 # comment out ONE of the following 2 lines to (not) generate video file
-                record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
-                #for i in 1:nFrames                                      # just compute
+                #record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
+                for i in 1:nFrames                                      # just compute
 
                    #println(i)
 

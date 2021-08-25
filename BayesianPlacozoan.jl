@@ -731,16 +731,21 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
   predator.y[] += predator.step[2]
   predator.receptor.y .+= predator.step[2]
 
-  #d3 = sqrt.(prey.observer.Pparticle[1:prey.observer.nPparticles[],1].^2 + prey.observer.Pparticle[1:prey.observer.nPparticles[],2].^2)
-
+  # d3 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
+  #     + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
   #v3 = sign.( prey.radius  + Δ .- d3)
-#=  prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:].= 0.8*prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:] +
-          0.2*randn(prey.observer.nPparticles[],2).*predator.speed[]
-          #  .+
-          # 0.1*v3.*predator.speed[].*prey.observer.Pparticle ./ d3
-  prey.observer.Pparticle[1:prey.observer.nPparticles[],:] .=  prey.observer.Pparticle[1:prey.observer.nPparticles[],:] +
-                              prey.observer.Pparticle_step[1:prey.observer.nPparticles[],:]
-=#
+
+#  mean(predator.observer.Pparticle[:,1])
+#  mean(predator.observer.Pparticle[:,2])
+
+# atan(mean(predator.observer.Pparticle[:,1]), mean(predator.observer.Pparticle[:,2]))
+
+# and somehow partition the pparticles aghhh
+# probably gotta separate particle count in sectors
+# once that's done there can be proportional activation
+
+
+
    update_particles(prey, predator.speed[])
    update_particles(predator, prey.speed[])
 
