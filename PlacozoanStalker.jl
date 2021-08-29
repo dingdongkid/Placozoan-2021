@@ -228,8 +228,8 @@ for rep = 1:nReps
             predator.receptor.x .-= predator.x
             predator.receptor.y .-= predator.y
 
-            predator.x[] = (mat_radius + 0.0* predator_radius) * cos(θ)
-            predator.y[] = (mat_radius + 0.0* predator_radius) * sin(θ)
+            predator.x[] = (mat_radius - 0.0* predator_radius) * cos(θ)
+            predator.y[] = (mat_radius - 0.0* predator_radius) * sin(θ)
 
             predator.receptor.x .+= predator.x
             predator.receptor.y .+= predator.y
@@ -487,7 +487,6 @@ for rep = 1:nReps
 
                     # predator random walk to within Δ of prey
                     stalk(predator, prey, approach_Δ)
-                    #are you serious this is where the problem was fuck me let's go
 
                     # electroreception
                     if ELECTRORECEPTION
@@ -639,7 +638,7 @@ for rep = 1:nReps
 
                         # trial parameters
                             Nreceptors,
-                            n_likelihood_particles, n_posterior_particles,  posteriorDeaths)),
+                            n_likelihood_particles, n_posterior_particles,  posteriorDeaths), :auto),
                             header=false, append=true)
 
                     print(".")

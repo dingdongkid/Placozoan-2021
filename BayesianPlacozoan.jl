@@ -1,7 +1,10 @@
 # BayesianPlacozoan module
+
+# using AbstractPlotting.MakieLayout
+# using AbstractPlotting
+
+#using Makie
 using GLMakie
-using AbstractPlotting.MakieLayout
-using AbstractPlotting
 using Colors
 using OffsetArrays
 using Distributions
@@ -720,23 +723,20 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
   d = sqrt(predator.x[]^2 + predator.y[]^2)  # distance from origin
   v = sign(prey.radius + predator.radius + Δ - d)#(distance between edges)-Δ.
   # pink noise motion in mat frame
-  predator.step[:] = 0.9*predator.step +
-                    0.1*randn(2).*predator.speed[]  .+
-                    0.1*v*predator.speed[].*([predator.x[], predator.y[]]) ./ d
-                    #last movement + random (normally distributed) movement + move to origin
 
-  # update predator coordinates
-  predator.x[] += predator.step[1]
-  predator.receptor.x .+= predator.step[1]
-  predator.y[] += predator.step[2]
-  predator.receptor.y .+= predator.step[2]
+  # moving to origin/prey xy/ [0,0]
+  v1 = 0.1*v*predator.speed[].*([predator.x[], predator.y[]]) ./ d
 
-  # d3 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
-  #     + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
-  #v3 = sign.( prey.radius  + Δ .- d3)
+  # moving to average of Bparticles
+  d2 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
+      + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
+  s2 = sign.(prey.radius  + Δ .- d2)
 
-#  mean(predator.observer.Pparticle[:,1])
-#  mean(predator.observer.Pparticle[:,2])
+  v2 = 0.01*predator.speed[].*([mean(-v.*predator.observer.Bparticle[1:predator.observer.nPparticles[],1]),
+    mean(-v.*predator.observer.Bparticle[1:predator.observer.nPparticles[],2])])
+  #println(v2)
+
+
 
 # atan(mean(predator.observer.Pparticle[:,1]), mean(predator.observer.Pparticle[:,2]))
 
@@ -744,10 +744,21 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
 # probably gotta separate particle count in sectors
 # once that's done there can be proportional activation
 
+  predator.step[:] = 0.9*predator.step +
+                    0.1*randn(2).*predator.speed[]  .+ v2
+
+                    #last movement + random (normally distributed) movement + assigned movement
 
 
-   update_particles(prey, predator.speed[])
-   update_particles(predator, prey.speed[])
+  # update predator coordinates
+  predator.x[] += predator.step[1]
+  predator.receptor.x .+= predator.step[1]
+  predator.y[] += predator.step[2]
+  predator.receptor.y .+= predator.step[2]
+
+
+  update_particles(prey, predator.speed[])
+  update_particles(predator, prey.speed[])
 
 end
 
