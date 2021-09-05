@@ -728,24 +728,42 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
   v1 = 0.1*v*predator.speed[].*([predator.x[], predator.y[]]) ./ d
 
   # moving to average of Bparticles
-  d2 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
-      + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
-  s2 = sign.(prey.radius  + Δ .- d2)
+  # d2 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
+  #     + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
+  #s2 = sign.(prey.radius  + Δ .- d2)
 
-  v2 = 0.01*predator.speed[].*([mean(-v.*predator.observer.Bparticle[1:predator.observer.nPparticles[],1]),
-    mean(-v.*predator.observer.Bparticle[1:predator.observer.nPparticles[],2])])
-  #println(v2)
+  v2 = 0.1*-v*predator.speed[].*([sum(predator.observer.Bparticle[1:predator.observer.nPparticles[],1]/1024),
+    sum(predator.observer.Bparticle[1:predator.observer.nPparticles[],2])/1024])
+#  println(v2)
 
 
+  #find angle to each Pparticle
+  a3 = rad2deg.(atan.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1],
+        predator.observer.Pparticle[1:predator.observer.nPparticles[],2]))
+  #println(a3)
+
+  #move to summed angle of Pparticles
+  v3 = 10/1024. *v*predator.speed[].*([sum(cos.(a3)), sum(sin.(a3))])
+  #println(v3)
+
+  #partition by angle in 10s
+  #a4 = 10.*(round.(a3 ./ 10))
 
 # atan(mean(predator.observer.Pparticle[:,1]), mean(predator.observer.Pparticle[:,2]))
+  x1 = 10*round.(predator.observer.Bparticle[1:predator.observer.nPparticles[],1]/10)
+  y1 = 10*round.(predator.observer.Bparticle[1:predator.observer.nPparticles[],2]/10)
+  #println(x1)
+  x1 = sum(x1)
+  y1 = sum(y1)
 
+  v4 = 0.1 * -v * predator.speed[] .* ([x1/1024, y1/1024])
+  #println(x1)
 # and somehow partition the pparticles aghhh
 # probably gotta separate particle count in sectors
 # once that's done there can be proportional activation
 
   predator.step[:] = 0.9*predator.step +
-                    0.1*randn(2).*predator.speed[]  .+ v2
+                    0.1*randn(2).*predator.speed[]  .+ v4
 
                     #last movement + random (normally distributed) movement + assigned movement
 
@@ -759,6 +777,8 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
 
   update_particles(prey, predator.speed[])
   update_particles(predator, prey.speed[])
+
+  #predator.step[:]
 
 end
 

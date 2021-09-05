@@ -29,7 +29,7 @@ end
 
 
 # simulation parameters
-nReps = 10
+nReps = 1
 nFrames = 480     # number of animation frames
 burn_time = 30      # burn in posterior initially for 30 sec with predator outside observable world
 mat_radius = 400
@@ -551,12 +551,12 @@ for rep = 1:nReps
                     if PLOT_EXT_PARTICLES
                         # update likelihood particle plot
                         # altered to prey
-                        Lparticle_plt[1] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 1]
-                        Lparticle_plt[2] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 2]
+                        Lparticle_plt[1] = predator.observer.Lparticle[1:prey.observer.nLparticles[], 1]
+                        Lparticle_plt[2] = predator.observer.Lparticle[1:prey.observer.nLparticles[], 2]
 
                         # update posterior particle plot
-                        Pparticle_plt[1] = prey.observer.Pparticle[1:prey.observer.nPparticles[], 1]
-                        Pparticle_plt[2] = prey.observer.Pparticle[1:prey.observer.nPparticles[], 2]
+                        Pparticle_plt[1] = predator.observer.Pparticle[1:prey.observer.nPparticles[], 1]
+                        Pparticle_plt[2] = predator.observer.Pparticle[1:prey.observer.nPparticles[], 2]
                     end # PLOT_EXT_PARTICLES
 
                     if PLOT_INT_PARTICLES
