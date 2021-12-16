@@ -715,6 +715,61 @@ function orbit(dψ::Float64, p::Array{Float64,2})
    nothing
 end
 
+function cellwise(p::Placozoan)
+  k = 25/1024.
+  w = 16
+  s = 2
+  cells = zeros(w+1, s)
+  sumX = 0.
+  sumY = 0.
+  θ = 2π/w
+
+  d = sqrt.(p.observer.Bparticle[1:p.observer.nPparticles[],1].^2
+      + p.observer.Bparticle[1:p.observer.nPparticles[],2].^2)
+
+  a = rad2deg.(atan.(p.observer.Bparticle[1:p.observer.nPparticles[],1],
+        p.observer.Bparticle[1:p.observer.nPparticles[],2]))
+
+  a2 = round.((a ./ (360/w)) .+ (w/2 + 1))
+#  println(a2)
+
+  for i in 1:p.observer.nPparticles[]
+
+    if (d[i] >= (p.gutradius) && d[i] <= p.radius)
+        pl = convert(Int, a2[i])
+      if d[i] < 100
+          cells[pl, 1] += 1
+      else
+          cells[pl, 2] += 1
+      end
+    end
+  end
+
+  for i in 1:length(cells[:,1])
+    for j in 1:length(cells[1,:])
+
+      # cells activate about threshold
+      # if cells[i,j] > (p.observer.nPparticles[] / length(cells))
+      #   sumX += k * -i * cos(cells[i, j])
+      #   sumY += k * -i * sin(cells[i, j])
+      # end
+
+      # all cells activated
+        sumX += -k * cos(i*θ) * j * cells[i, j]
+        sumY += -k * sin(i*θ) * j * cells[i, j]
+    end
+  end
+
+  # sumX *= k
+  # sumY *= k
+
+  return [sumX, sumY]
+
+  # max distance = every particle in cell * k
+  # use number as a percentage (or put /1024 in k)
+
+end
+
 # predator movement
 # TODO: direct third component of movement towards [detected] prey
 function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
@@ -724,14 +779,17 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
   v = sign(prey.radius + predator.radius + Δ - d)#(distance between edges)-Δ.
   # pink noise motion in mat frame
 
+#=
   # moving to origin/prey xy/ [0,0]
   v1 = 0.1*v*predator.speed[].*([predator.x[], predator.y[]]) ./ d
 
-  # moving to average of Bparticles
-  # d2 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
-  #     + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
+
+  # average distance and positive/negative sign
+  d2 = sqrt.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1].^2
+       + predator.observer.Pparticle[1:predator.observer.nPparticles[],2].^2)
   #s2 = sign.(prey.radius  + Δ .- d2)
 
+  # move towards average location of Bparticles within body
   v2 = 0.1*-v*predator.speed[].*([sum(predator.observer.Bparticle[1:predator.observer.nPparticles[],1]/1024),
     sum(predator.observer.Bparticle[1:predator.observer.nPparticles[],2])/1024])
 #  println(v2)
@@ -740,30 +798,37 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
   #find angle to each Pparticle
   a3 = rad2deg.(atan.(predator.observer.Pparticle[1:predator.observer.nPparticles[],1],
         predator.observer.Pparticle[1:predator.observer.nPparticles[],2]))
-  #println(a3)
 
-  #move to summed angle of Pparticles
+  #move set distance in the direction of the summed angle of Pparticles
   v3 = 10/1024. *v*predator.speed[].*([sum(cos.(a3)), sum(sin.(a3))])
   #println(v3)
 
   #partition by angle in 10s
   #a4 = 10.*(round.(a3 ./ 10))
 
-# atan(mean(predator.observer.Pparticle[:,1]), mean(predator.observer.Pparticle[:,2]))
+  # find angle to each Pparticle
+  # atan(mean(predator.observer.Pparticle[:,1]), mean(predator.observer.Pparticle[:,2]))
+
+  #partition by location in multiples of 10 - gridwise
   x1 = 10*round.(predator.observer.Bparticle[1:predator.observer.nPparticles[],1]/10)
   y1 = 10*round.(predator.observer.Bparticle[1:predator.observer.nPparticles[],2]/10)
   #println(x1)
   x1 = sum(x1)
   y1 = sum(y1)
 
+  # println(x1/1024)
+  # println(y1/1024)
+
   v4 = 0.1 * -v * predator.speed[] .* ([x1/1024, y1/1024])
-  #println(x1)
-# and somehow partition the pparticles aghhh
-# probably gotta separate particle count in sectors
-# once that's done there can be proportional activation
+  #println(v4)
+=#
+
+  #partitioning sectors by angular wedges, in addition to distance
+  v5 = 0.1 * -v * predator.speed[] .* (cellwise(predator))
+  #println(v5)
 
   predator.step[:] = 0.9*predator.step +
-                    0.1*randn(2).*predator.speed[]  .+ v4
+                    0.1*randn(2).*predator.speed[]  .+ v5
 
                     #last movement + random (normally distributed) movement + assigned movement
 
@@ -780,6 +845,8 @@ function stalk(predator::Placozoan, prey::Placozoan, Δ::Float64)
 
   #predator.step[:]
 
+  #add force vector of angle sector direction * amount in sector
+  # possibly as a percentage? probably not tho
 end
 
 function update_particles(p::Placozoan, v::Float64)
@@ -998,7 +1065,7 @@ end
 
 
 # summarize particle distributions
-function particleStats(prey::Placozoan, predator::Placozoan)
+function particleStats(::Placozoan, predator::Placozoan)
 
   bearing2predator = atan(predator.y[], predator.x[])    # bearing to centre of predator
 
@@ -1332,27 +1399,3 @@ function posteriorInMcellRF(p::Placozoan)
 
   Pr
 end
-
-#=
-function findprey ezmode
-set drift location to average of belief particles
-end
-
-function findprey medium
-set drift angle to average of belief particles
-end
-
-function findprey hardmode
-sector-wise or cell-wise search for belief particles
-unsure how to make this efficient, possibly look at sorting
-then move towards set location
-aim for simplicity O(n) to O(n log n)
-end
-
-function findprey hardest
-cell-wise activation, on/off or linear with belief particles
-sum all forces and move
-nutso
-end
-
-=#

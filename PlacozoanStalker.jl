@@ -29,8 +29,8 @@ end
 
 
 # simulation parameters
-nReps = 1
-nFrames = 480     # number of animation frames
+nReps = 10
+nFrames = 240     # number of animation frames
 burn_time = 30      # burn in posterior initially for 30 sec with predator outside observable world
 mat_radius = 400
 approach_Δ = 25.0         # predator closest approach distance
@@ -172,7 +172,8 @@ for rep = 1:nReps
                     RGB(.95, 0.1, 0.1) )
                 predator.speed[] = predator_speed
                 prey.speed[] = predator_speed
-                θ = π * rand()[] # Random initial heading (from above)
+                #θ = π * rand()[] # Random initial heading (from above)
+                θ = 0 * rand()[]
                 predator.x[] = (mat_radius + predator_radius) * cos(θ)
                 #predator.receptor.x .+= predator.x
                 predator.y[] = (mat_radius + predator_radius) * sin(θ)
@@ -480,8 +481,8 @@ for rep = 1:nReps
 
                 # VIDEO RECORDING
                 # comment out ONE of the following 2 lines to (not) generate video file
-                #record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
-                for i in 1:nFrames                                      # just compute
+                record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
+                #for i in 1:nFrames                                      # just compute
 
                    #println(i)
 
@@ -551,12 +552,12 @@ for rep = 1:nReps
                     if PLOT_EXT_PARTICLES
                         # update likelihood particle plot
                         # altered to prey
-                        Lparticle_plt[1] = predator.observer.Lparticle[1:prey.observer.nLparticles[], 1]
-                        Lparticle_plt[2] = predator.observer.Lparticle[1:prey.observer.nLparticles[], 2]
+                        Lparticle_plt[1] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 1]
+                        Lparticle_plt[2] = prey.observer.Lparticle[1:prey.observer.nLparticles[], 2]
 
                         # update posterior particle plot
-                        Pparticle_plt[1] = predator.observer.Pparticle[1:prey.observer.nPparticles[], 1]
-                        Pparticle_plt[2] = predator.observer.Pparticle[1:prey.observer.nPparticles[], 2]
+                        Pparticle_plt[1] = prey.observer.Pparticle[1:prey.observer.nPparticles[], 1]
+                        Pparticle_plt[2] = prey.observer.Pparticle[1:prey.observer.nPparticles[], 2]
                     end # PLOT_EXT_PARTICLES
 
                     if PLOT_INT_PARTICLES
@@ -642,6 +643,10 @@ for rep = 1:nReps
                             header=false, append=true)
 
                     print(".")
+
+                    # if (sqrt(predator.x[]^2 + predator.y[]^2) > mat_radius*1.5)
+                    #     break
+                    # end
 
 
                 end # frame
