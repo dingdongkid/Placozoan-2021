@@ -20,7 +20,7 @@ PRED_RECEPTION = true
 # settings above to take effect.
 # to [not] create a video file, [comment] uncomment the line starting "record(scene ..."
 # (about line 400) and comment out the for i = ... (next line)
-DO_PLOTS = true
+DO_PLOTS = false
 if DO_PLOTS == false
     PLOT_EXT_PARTICLES = false
     PLOT_INT_PARTICLES = false
@@ -29,8 +29,8 @@ end
 
 
 # simulation parameters
-nReps = 10
-nFrames = 240     # number of animation frames
+nReps = 20
+nFrames = 300     # number of animation frames
 burn_time = 30      # burn in posterior initially for 30 sec with predator outside observable world
 mat_radius = 400
 approach_Δ = 25.0         # predator closest approach distance
@@ -229,8 +229,8 @@ for rep = 1:nReps
             predator.receptor.x .-= predator.x
             predator.receptor.y .-= predator.y
 
-            predator.x[] = (mat_radius - 0.0* predator_radius) * cos(θ)
-            predator.y[] = (mat_radius - 0.0* predator_radius) * sin(θ)
+            predator.x[] = (mat_radius - 0.5 * predator_radius) * cos(θ)
+            predator.y[] = (mat_radius - 0.5 * predator_radius) * sin(θ)
 
             predator.receptor.x .+= predator.x
             predator.receptor.y .+= predator.y
@@ -238,8 +238,8 @@ for rep = 1:nReps
             # initialize particle filter
             initialize_particles(prey) # draw initial sample from prior
             initialize_particles(predator)
-            println(prey.receptor.x[1])
-            println(predator.receptor.x[1])
+            # println(prey.receptor.x[1])
+            # println(predator.receptor.x[1])
 
                 if DO_PLOTS
 
@@ -256,6 +256,7 @@ for rep = 1:nReps
                             titlecolor = title_color, backgroundcolor=:black )
                         middle_panel = scene[1, 2] = Axis(scene, title="Likelihood", titlecolor = title_color, backgroundcolor=colour_background)
                         right_panel = scene[1, 3] = Axis(scene, title="Bayesian Observer", titlecolor = title_color, backgroundcolor=colour_background)
+                    #    pred_panel = scene[1, 4] = Axis(scene, title="predator location", titlecolor = title_color, backgroundcolor=:white)
 
 
 
@@ -270,6 +271,8 @@ for rep = 1:nReps
                         hidedecorations!(middle_panel)
                         hidespines!(right_panel)
                         hidedecorations!(right_panel)
+                    #    hidespines!(pred_panel)
+                    #    hidedecorations!(pred_panel)
                     end
 
 
@@ -302,13 +305,13 @@ for rep = 1:nReps
                         color=RGB(.7,.7, .7), textsize=18, halign=:left)
 
 
-                # predator drawn using lift(..., node)
-                # (predatorLocation does not depend explicitly on t, but this causes
-                #  the plot to be updated when the node t changes)
-                predator_plt = poly!(left_panel,
-                    lift(s -> decompose(Point2f0, Circle(Point2f0(predator.x[], predator.y[]),
-                        predator.radius)), t),
-                    color=predator.color, strokecolor=predator.edgecolor, strokewidth=.5)
+                    # predator drawn using lift(..., node)
+                    # (predatorLocation does not depend explicitly on t, but this causes
+                    #  the plot to be updated when the node t changes)
+                    predator_plt = poly!(left_panel,
+                        lift(s -> decompose(Point2f0, Circle(Point2f0(predator.x[], predator.y[]),
+                            predator.radius)), t),
+                        color=predator.color, strokecolor=predator.edgecolor, strokewidth=.5)
 
                 end # DO_PLOTS
 
@@ -472,6 +475,8 @@ for rep = 1:nReps
                         ylims!(middle_panel, 0, WorldSize)
                         xlims!(right_panel, 0, WorldSize)
                         ylims!(right_panel, 0, WorldSize)
+                        # xlims!(pred_panel, 0, WorldSize)
+                        # ylims!(pred_panel, 0, WorldSize)
                     end
 
                 end #DO_PLOTS
@@ -481,13 +486,17 @@ for rep = 1:nReps
 
                 # VIDEO RECORDING
                 # comment out ONE of the following 2 lines to (not) generate video file
-                record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
-                #for i in 1:nFrames                                      # just compute
+                #record(scene, videoName , framerate=16, 1:nFrames) do i     # generate video file
+                for i in 1:nFrames                                      # just compute
 
                    #println(i)
 
                     # predator random walk to within Δ of prey
                     stalk(predator, prey, approach_Δ)
+                    # if (sqrt(predator.x[]^2 + predator.y[]^2) < mat_radius*1.5)
+                    #     predXY = scatter!(pred_panel, predator.x, predator.y,
+                    #                 markersize = 5.0, color = :black)
+                    # end
 
                     # electroreception
                     if ELECTRORECEPTION
@@ -501,13 +510,15 @@ for rep = 1:nReps
                             receptorColor[findall(x -> x == 1, prey.receptor.state)] .= prey.receptor.openColor
                             receptor_plt.color[] = receptorColor
 
-                            #pred colour too
-                            p_receptorColor = [predator.receptor.closedColor for j = 1:predator.receptor.N]
-                            p_receptorColor[findall(x -> x == 1, predator.receptor.state)] .= predator.receptor.openColor
-                            predRecep_plt.color[] = p_receptorColor
 
                             if PLOT_ARRAYS
                                 L_receptor_plt.color[] = R_receptor_plt.color[] = receptorColor
+                                #pred colour too
+                                if PRED_RECEPTION
+                                    p_receptorColor = [predator.receptor.closedColor for j = 1:predator.receptor.N]
+                                    p_receptorColor[findall(x -> x == 1, predator.receptor.state)] .= predator.receptor.openColor
+                                    predRecep_plt.color[] = p_receptorColor
+                                end
                             end
                         end # DO_PLOTS
                     end  # electroreception
@@ -574,17 +585,23 @@ for rep = 1:nReps
 
                     if PLOT_ARRAYS
 
-
                         Likely_plt[1] = mask .* OffsetArrays.no_offset_view(prey.observer.likelihood)
                         Posty_plt[3] = mask .* OffsetArrays.no_offset_view(prey.observer.posterior)
+
+                        # if (sqrt(predator.x[]^2 + predator.y[]^2) < mat_radius*1.5)
+                        #     predXY = scatter!(pred_panel, predator.x, predator.y,
+                        #                 markersize = 5.0, color = :black)
+                        # end
+
+                        if PRED_RECEPTION
+
+                            predRecep_plt[1] = predator.receptor.x
+                            predRecep_plt[2] = predator.receptor.y
+
+                        end
                     end # PLOT_ARRAYS
 
-                    if PRED_RECEPTION
 
-                        predRecep_plt[1] = predator.receptor.x
-                        predRecep_plt[2] = predator.receptor.y
-
-                    end
 
                     # record posterior entropy (& display during simulation)
                     prey.observer.PosteriorEntropy[i] = entropy(prey.observer.posterior)
@@ -653,8 +670,8 @@ for rep = 1:nReps
 
                 println()
                 println(prey.receptor.state)
-                println(prey.receptor.x[1])
-                println(predator.receptor.x[1])
+                # println(prey.receptor.x[1])
+                # println(predator.receptor.x[1])
 
                 NTRIALS[] = NTRIALS[] + 1
                 laptimer()
